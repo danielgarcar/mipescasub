@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "Mi PescaSub",
+    "slug": "perez-sub",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "perezsub",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#04223C",
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Mi PescaSub necesita tu ubicación para registrar spots de pesca submarina y capturas.",
+        "NSPhotoLibraryUsageDescription": "Mi PescaSub necesita acceso a tus fotos para adjuntar capturas.",
+        "NSCameraUsageDescription": "Mi PescaSub necesita la cámara para fotografiar tus capturas y spots."
+      },
+      "bundleIdentifier": "com.danielperez.perezsub"
+    },
+    "android": {
+      "package": "com.danielperez.perezsub",
+      "adaptiveIcon": {
+        "backgroundColor": "#04223C",
+        "foregroundImage": "./assets/images/icon.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permite registrar spots y capturas de pesca submarina."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Permite a Mi PescaSub usar la cámara para capturas y spots."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#04223C",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

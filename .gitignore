@@ -1,0 +1,32 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Entorno local (no subir credenciales)
+.env
+.env.local
+.env.*.local
+
+npm-debug.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+.DS_Store
+.uni-app/
+Thumbs.db
+
+.vercel
+.env*
+
+# Notas internas con secretos (cron secret, usuario demo): no subir
+FASE*_*.md
+
+# Estado local de la CLI de Supabase
+supabase/.temp/
+supabase/supabase/.temp/
