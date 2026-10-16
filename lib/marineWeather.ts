@@ -6,25 +6,73 @@
  * El nivel del mar viene de un modelo global de baja resolución (~8 km): sirve para saber si
  * la marea sube o baja y las horas aproximadas de pleamar/bajamar, no como tablas oficiales
  * (para eso, las del IHM).
+ *
+ * La previsión se organiza por días (hoy y los 3 siguientes), cada uno con sus 24 horas.
  */
 
-export type TideEvent = { tipo: 'pleamar' | 'bajamar'; hora: string; alturaM: number };
+export type TideEvent = {
+  tipo: 'pleamar' | 'bajamar';
+  /** día local, YYYY-MM-DD */
+  fecha: string;
+  /** HH:MM */
+  hora: string;
+  /** minutos desde las 00:00 */
+  min: number;
+  /** marca de tiempo (misma referencia que `ahoraTs`) */
+  ts: number;
+  alturaM: number;
+};
 
-export type HourForecast = {
+/** Datos de una hora concreta. */
+export type HoraDato = {
+  fecha: string;
+  /** 0-23 */
+  h: number;
   hora: string;
   icono: string;
   cielo: string;
+  tempAire: number | null;
   vientoKn: number;
   rachaKn: number;
   vientoDir: number;
   olaM: number | null;
+  olaPeriodoS: number | null;
+  olaDir: number | null;
+  tempMar: number | null;
   lluviaPct: number | null;
+  lluviaMm: number | null;
+  nivelM: number | null;
+  esDia: boolean;
+};
+
+export type Dia = {
+  fecha: string;
+  /** "Hoy", "Mañana", "vie 18" */
+  etiqueta: string;
+  esHoy: boolean;
+  horas: HoraDato[];
+  /** Avisos del día: lluvia, tormenta, sol… */
+  resumen: { icono: string; texto: string }[];
+  amanecer: string | null;
+  atardecer: string | null;
+  tMin: number | null;
+  tMax: number | null;
+  icono: string;
+  cielo: string;
+  mareas: TideEvent[];
+  /** Nivel del mar de las 24 horas del día (m, respecto al medio); null si falta el dato. */
+  niveles: (number | null)[];
 };
 
 export type Conditions = {
   zonaHoraria: string;
+  /** hora local actual del punto, en la misma referencia que `TideEvent.ts` */
+  ahoraTs: number;
+  /** hora local actual (0-23) */
+  horaActual: number;
   actual: {
     cielo: string;
+    icono: string;
     tempAire: number | null;
     vientoKn: number | null;
     rachaKn: number | null;
@@ -37,12 +85,10 @@ export type Conditions = {
     tempMar: number | null;
     nivelMarM: number | null;
   };
-  marea: { tendencia: 'subiendo' | 'bajando' | null; eventos: TideEvent[] };
-  proximas: HourForecast[];
-  /** Avisos de las próximas 24 h: lluvia, tormenta, sol… */
-  resumen: { icono: string; texto: string }[];
-  amanecer: string | null;
-  atardecer: string | null;
+  tendencia: 'subiendo' | 'bajando' | null;
+  /** Próxima pleamar o bajamar a partir de ahora (puede estar en un día posterior). */
+  proximoExtremo: TideEvent | null;
+  dias: Dia[];
 };
 
 const WMO_ES: Record<number, string> = {
@@ -100,10 +146,12 @@ function fecha(iso: string): string {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 }
 
-/** Extremos de la serie horaria; la hora se afina con una parábola por los tres puntos. */
-function extremos(times: string[], levels: (number | null)[], desde: number): TideEvent[] {
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Todas las pleamares y bajamares de la serie; la hora se afina con una parábola por los tres puntos. */
+function extremos(times: string[], levels: (number | null)[]): TideEvent[] {
   const out: TideEvent[] = [];
-  for (let i = Math.max(1, desde); i < levels.length - 1; i++) {
+  for (let i = 1; i < levels.length - 1; i++) {
     const a = levels[i - 1], b = levels[i], c = levels[i + 1];
     if (a === null || b === null || c === null) continue;
     const pleamar = b > a && b >= c;
@@ -111,23 +159,31 @@ function extremos(times: string[], levels: (number | null)[], desde: number): Ti
     if (!pleamar && !bajamar) continue;
     const den = a - 2 * b + c;
     const delta = den !== 0 ? (0.5 * (a - c)) / den : 0; // desplazamiento en horas respecto a i
-    const t = new Date(times[i] + ':00').getTime() + delta * 3600_000;
-    const d = new Date(t);
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ts = new Date(times[i] + ':00').getTime() + delta * 3600_000;
+    const d = new Date(ts);
     const alt = den !== 0 ? b - (0.25 * (a - c) * (a - c)) / den : b; // valor en el vértice de la parábola
-    out.push({ tipo: pleamar ? 'pleamar' : 'bajamar', hora: `${fecha(times[i])} ${hh}:${mm}`, alturaM: alt });
+    out.push({
+      tipo: pleamar ? 'pleamar' : 'bajamar',
+      fecha: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      hora: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      min: d.getHours() * 60 + d.getMinutes(),
+      ts,
+      alturaM: alt,
+    });
   }
   return out;
 }
 
-/** Avisos de las próximas 24 h a partir de la serie horaria. */
-function resumir(w: any, desde: number): { icono: string; texto: string }[] {
+/** Avisos de un tramo [desde, hasta) de la serie horaria. */
+function resumir(w: any, desde: number, hasta: number, ahora: number): { icono: string; texto: string }[] {
   const h = w?.hourly;
   if (!h?.time) return [];
   const out: { icono: string; texto: string }[] = [];
-  const fin = Math.min(h.time.length, desde + 24);
-  const hora = (i: number) => (i === desde ? 'ahora' : `${fecha(h.time[i])} ${h.time[i].slice(11, 16)}`);
+  const fin = Math.min(h.time.length, hasta);
+  const hora = (i: number) =>
+    i === ahora ? 'ahora' : i - desde < 24 && h.time[i].slice(0, 10) === h.time[desde].slice(0, 10)
+      ? h.time[i].slice(11, 16)
+      : `${fecha(h.time[i])} ${h.time[i].slice(11, 16)}`;
   const idx = (f: (i: number) => boolean) => {
     for (let i = desde; i < fin; i++) if (f(i)) return i;
     return -1;
@@ -147,7 +203,7 @@ function resumir(w: any, desde: number): { icono: string; texto: string }[] {
     for (let i = desde; i < fin; i++) max = Math.max(max, h.precipitation?.[i] ?? 0);
     out.push({ icono: '🌧️', texto: `Lluvia prevista: ${hora(iLl)}${max > 0 ? ` (hasta ${max.toFixed(1)} mm/h)` : ''}` });
   } else {
-    out.push({ icono: '☂️', texto: 'Sin lluvia prevista en las próximas 24 h' });
+    out.push({ icono: '☂️', texto: 'Sin lluvia prevista' });
   }
 
   const iNieve = idx((i) => nieve(h.weather_code?.[i] ?? 0));
@@ -170,19 +226,26 @@ function resumir(w: any, desde: number): { icono: string; texto: string }[] {
   return out;
 }
 
+function etiquetaDia(f: string, i: number): string {
+  if (i === 0) return 'Hoy';
+  if (i === 1) return 'Mañana';
+  const d = new Date(f + 'T12:00:00');
+  return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.', '');
+}
+
 export async function getConditions(lat: number, lng: number): Promise<Conditions | null> {
-  const q = `latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&timezone=auto&forecast_days=3`;
+  const q = `latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&timezone=auto&forecast_days=4`;
   const [w, m] = await Promise.all([
     getJson(
       `https://api.open-meteo.com/v1/forecast?${q}&wind_speed_unit=kn` +
-        '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl,cloud_cover' +
-        '&hourly=wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,precipitation,weather_code,is_day' +
+        '&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,pressure_msl,cloud_cover,is_day' +
+        '&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation_probability,precipitation,weather_code,is_day' +
         '&daily=sunrise,sunset',
     ),
     getJson(
       `https://marine-api.open-meteo.com/v1/marine?${q}` +
         '&current=wave_height,wave_period,wave_direction,sea_surface_temperature,sea_level_height_msl' +
-        '&hourly=wave_height,sea_level_height_msl',
+        '&hourly=wave_height,wave_period,wave_direction,sea_surface_temperature,sea_level_height_msl',
     ),
   ]);
   if (!w && !m) return null;
@@ -191,40 +254,101 @@ export async function getConditions(lat: number, lng: number): Promise<Condition
   const mc = m?.current ?? {};
   const horasW: string[] = w?.hourly?.time ?? [];
   const horasM: string[] = m?.hourly?.time ?? [];
+  const hw = w?.hourly ?? {};
+  const hm = m?.hourly ?? {};
+  const base: string[] = horasW.length ? horasW : horasM;
+  if (!base.length) return null;
 
-  // Mareas: desde la hora actual.
-  const nowIso: string = mc.time ?? wc.time ?? '';
+  const nowIso: string = (mc.time ?? wc.time ?? base[0]) as string;
+  const hoyFecha = nowIso.slice(0, 10);
+  const horaActual = parseInt(nowIso.slice(11, 13), 10) || 0;
+  const ahoraTs = new Date(nowIso.slice(0, 16) + ':00').getTime();
+  const idxM = new Map<string, number>(horasM.map((t, i) => [t, i]));
+
+  // Mareas: todos los extremos de la serie, repartidos por día.
+  const nivel: (number | null)[] = hm.sea_level_height_msl ?? [];
+  const todos = extremos(horasM, nivel);
   const iNow = Math.max(0, horasM.findIndex((t) => t >= nowIso.slice(0, 13) + ':00'));
-  const nivel: (number | null)[] = m?.hourly?.sea_level_height_msl ?? [];
-  const eventos = extremos(horasM, nivel, iNow).slice(0, 4);
   const aN = nivel[iNow], bN = nivel[iNow + 1];
   const tendencia = aN != null && bN != null ? (bN > aN ? 'subiendo' : 'bajando') : null;
+  const proximoExtremo = todos.find((e) => e.ts > ahoraTs) ?? null;
 
-  // Próximas horas cada 3 h.
-  const iW = Math.max(0, horasW.findIndex((t) => t >= nowIso.slice(0, 13) + ':00'));
-  const proximas: HourForecast[] = [];
-  for (let k = 0; k < 9 && iW + k * 3 < horasW.length; k++) {
-    const i = iW + k * 3;
-    const j = horasM.indexOf(horasW[i]);
-    const code: number = w.hourly.weather_code?.[i] ?? 3;
-    proximas.push({
-      icono: iconoCielo(code, w.hourly.is_day?.[i] !== 0),
-      cielo: WMO_ES[code] ?? '—',
-      hora: fecha(horasW[i]) + ' ' + horasW[i].slice(11, 16),
-      vientoKn: w.hourly.wind_speed_10m[i],
-      rachaKn: w.hourly.wind_gusts_10m[i],
-      vientoDir: w.hourly.wind_direction_10m[i],
-      olaM: j >= 0 ? (m?.hourly?.wave_height?.[j] ?? null) : null,
-      lluviaPct: w.hourly.precipitation_probability?.[i] ?? null,
-    });
+  // Días presentes en la serie, a partir de hoy.
+  const fechas: string[] = [];
+  for (const t of base) {
+    const f = t.slice(0, 10);
+    if (f >= hoyFecha && !fechas.includes(f)) fechas.push(f);
   }
 
-  const resumen = resumir(w, iW);
+  const dias: Dia[] = fechas.slice(0, 4).map((f, di) => {
+    const horas: HoraDato[] = [];
+    let primero = -1;
+    for (let h = 0; h < 24; h++) {
+      const t = `${f}T${pad(h)}:00`;
+      const i = horasW.indexOf(t);
+      if (i < 0) continue;
+      if (primero < 0) primero = i;
+      const j = idxM.get(t) ?? -1;
+      const code: number = hw.weather_code?.[i] ?? 3;
+      const esDia = hw.is_day?.[i] !== 0;
+      horas.push({
+        fecha: f, h, hora: `${pad(h)}:00`,
+        icono: iconoCielo(code, esDia), cielo: WMO_ES[code] ?? '—',
+        tempAire: hw.temperature_2m?.[i] ?? null,
+        vientoKn: hw.wind_speed_10m?.[i] ?? 0,
+        rachaKn: hw.wind_gusts_10m?.[i] ?? 0,
+        vientoDir: hw.wind_direction_10m?.[i] ?? 0,
+        olaM: j >= 0 ? (hm.wave_height?.[j] ?? null) : null,
+        olaPeriodoS: j >= 0 ? (hm.wave_period?.[j] ?? null) : null,
+        olaDir: j >= 0 ? (hm.wave_direction?.[j] ?? null) : null,
+        tempMar: j >= 0 ? (hm.sea_surface_temperature?.[j] ?? null) : null,
+        lluviaPct: hw.precipitation_probability?.[i] ?? null,
+        lluviaMm: hw.precipitation?.[i] ?? null,
+        nivelM: j >= 0 ? (nivel[j] ?? null) : null,
+        esDia,
+      });
+    }
+
+    // Icono y cielo del día: el del mediodía, salvo que haya tormenta o lluvia sostenida en horas de luz.
+    const luz = horas.filter((x) => x.h >= 8 && x.h <= 20);
+    const medio = horas.find((x) => x.h === 14) ?? horas[0];
+    const codes = luz.map((x) => hw.weather_code?.[horasW.indexOf(`${f}T${pad(x.h)}:00`)] ?? 3);
+    let icono = medio ? iconoCielo(hw.weather_code?.[horasW.indexOf(`${f}T14:00`)] ?? 3, true) : '☁️';
+    let cielo = medio?.cielo ?? '—';
+    if (codes.some(tormenta)) { icono = '⛈️'; cielo = 'Tormenta posible'; }
+    else if (codes.filter(lluvia).length >= 3) { icono = '🌧️'; cielo = 'Lluvia'; }
+
+    const temps = horas.map((x) => x.tempAire).filter((x): x is number => x !== null);
+    const desde = di === 0 ? Math.max(0, base.indexOf(nowIso.slice(0, 13) + ':00')) : primero;
+    const hasta = di === 0 ? desde + 24 : primero + 24;
+
+    return {
+      fecha: f,
+      etiqueta: etiquetaDia(f, di),
+      esHoy: di === 0,
+      horas,
+      resumen: resumir(w, Math.max(0, desde), hasta, di === 0 ? desde : -1),
+      amanecer: w?.daily?.sunrise?.[di]?.slice(11, 16) ?? null,
+      atardecer: w?.daily?.sunset?.[di]?.slice(11, 16) ?? null,
+      tMin: temps.length ? Math.min(...temps) : null,
+      tMax: temps.length ? Math.max(...temps) : null,
+      icono,
+      cielo,
+      mareas: todos.filter((e) => e.fecha === f),
+      niveles: Array.from({ length: 24 }, (_, h) => {
+        const j = idxM.get(`${f}T${pad(h)}:00`);
+        return j === undefined ? null : (nivel[j] ?? null);
+      }),
+    };
+  });
 
   return {
     zonaHoraria: w?.timezone ?? m?.timezone ?? '',
+    ahoraTs,
+    horaActual,
     actual: {
       cielo: WMO_ES[wc.weather_code] ?? '—',
+      icono: iconoCielo(wc.weather_code ?? 3, wc.is_day !== 0),
       tempAire: wc.temperature_2m ?? null,
       vientoKn: wc.wind_speed_10m ?? null,
       rachaKn: wc.wind_gusts_10m ?? null,
@@ -237,10 +361,34 @@ export async function getConditions(lat: number, lng: number): Promise<Condition
       tempMar: mc.sea_surface_temperature ?? null,
       nivelMarM: mc.sea_level_height_msl ?? null,
     },
-    marea: { tendencia, eventos },
-    proximas,
-    resumen,
-    amanecer: w?.daily?.sunrise?.[0]?.slice(11, 16) ?? null,
-    atardecer: w?.daily?.sunset?.[0]?.slice(11, 16) ?? null,
+    tendencia,
+    proximoExtremo,
+    dias,
   };
+}
+
+/* ───────── ventanas de horas para cada vista ───────── */
+
+/** Horas que cuentan para valorar un día: hoy, desde ahora y las 12 siguientes; el resto, de 7 a 20 h. */
+export function horasValoracion(c: Conditions, di: number): HoraDato[] {
+  const d = c.dias[di];
+  if (!d) return [];
+  if (!d.esHoy) return d.horas.filter((x) => x.h >= 7 && x.h <= 20);
+  const todas = c.dias.slice(0, 2).flatMap((x) => x.horas);
+  const i0 = todas.findIndex((x) => x.fecha === d.fecha && x.h === c.horaActual);
+  return todas.slice(Math.max(0, i0), Math.max(0, i0) + 13);
+}
+
+/**
+ * Columnas de la tira horaria: cada 3 h y como máximo 6, para que quepan en el panel sin deslizar.
+ * Hoy: desde ahora (si queda poco día, se completa con la mañana siguiente); otros días: de 6 a 21 h.
+ */
+export function horasTira(c: Conditions, di: number): HoraDato[] {
+  const d = c.dias[di];
+  if (!d) return [];
+  const paso = (xs: HoraDato[]) => xs.filter((x) => x.h % 3 === 0);
+  if (!d.esHoy) return paso(d.horas.filter((x) => x.h >= 6 && x.h <= 21));
+  const hoy = paso(d.horas.filter((x) => x.h >= c.horaActual));
+  if (hoy.length >= 6 || !c.dias[1]) return hoy.slice(0, 6);
+  return [...hoy, ...paso(c.dias[1].horas.filter((x) => x.h >= 6 && x.h <= 21))].slice(0, 6);
 }

@@ -248,7 +248,15 @@ export default function MapaScreen() {
         <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
       </View>
 
-      {tapped && <PointInfoPanel point={tapped} onClose={() => setTapped(null)} />}
+      {tapped && (
+        <PointInfoPanel
+          point={tapped}
+          onClose={() => setTapped(null)}
+          onGuardar={() =>
+            router.push({ pathname: '/spot/new', params: { lat: tapped.lat.toFixed(6), lng: tapped.lng.toFixed(6) } })
+          }
+        />
+      )}
 
       {/* Panel inferior con el spot seleccionado */}
       {selected && (
