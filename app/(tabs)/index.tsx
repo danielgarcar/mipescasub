@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Pressable, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker } from 'react-native-maps';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuth';
-import { accesoSpot, COLOR_ACCESO } from '@/components/VisibilityBadge';
+import { accesoSpot, COLOR_ACCESO, ICONO_ACCESO } from '@/components/VisibilityBadge';
+import { Banner, IconButton } from '@/components/ui';
 import { useSpots } from '@/hooks/useSpots';
 import { SpotCard } from '@/components/SpotCard';
-import { ThemedText } from '@/components/ThemedText';
 import { palette, spacing, radii } from '@/lib/theme';
 import { PointInfoPanel } from '@/components/PointInfoPanel';
 import { PlaceSearch, type PlaceResult } from '@/components/PlaceSearch';
@@ -82,6 +83,11 @@ export default function MapaScreen() {
           setSelected(null);
           setTapped({ lat: c.latitude, lng: c.longitude });
         }}
+        onLongPress={(e: any) => {
+          // Atajo: mantener pulsado crea un spot justo ahí.
+          const c = e.nativeEvent.coordinate;
+          router.push({ pathname: '/spot/new', params: { lat: c.latitude.toFixed(6), lng: c.longitude.toFixed(6) } });
+        }}
         mapType={basemap === 'satelite' || basemap === 'mixta' ? 'satellite' : basemap === 'osm' ? 'none' : 'standard'}
         {...({ basemap } as any)}
         customMapStyle={basemap === 'carta' ? DARK_MAP_STYLE : undefined}
@@ -92,49 +98,44 @@ export default function MapaScreen() {
         {(basemap === 'carta' || basemap === 'mixta') && (
           <WMSTile urlTemplate={ENC_WMS} tileSize={256} opacity={basemap === 'mixta' ? 0.6 : 1} zIndex={1} />
         )}
-        {spots.map((s) => (
-          <Marker
-            key={s.id}
-            coordinate={{ latitude: s.lat, longitude: s.lng }}
-            title={s.nombre}
-            description={s.description ?? undefined}
-            pinColor={COLOR_ACCESO[accesoSpot(s, user?.id)]}
-            onPress={() => onMarkerPress(s)}
-          />
-        ))}
+        {spots.map((s) => {
+          const acceso = accesoSpot(s, user?.id);
+          return (
+            <Marker
+              key={s.id}
+              coordinate={{ latitude: s.lat, longitude: s.lng }}
+              accessibilityLabel={`Spot ${s.nombre}`}
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
+              onPress={() => onMarkerPress(s)}
+            >
+              {/* Forma (icono) + color: el acceso no depende solo del color */}
+              <View style={[styles.pin, { backgroundColor: COLOR_ACCESO[acceso] }]}>
+                <Ionicons name={ICONO_ACCESO[acceso]} size={16} color={palette.onAccent} />
+              </View>
+            </Marker>
+          );
+        })}
         {tapped && (
-          <Marker coordinate={{ latitude: tapped.lat, longitude: tapped.lng }} pinColor="#f2994a" />
+          <Marker coordinate={{ latitude: tapped.lat, longitude: tapped.lng }} pinColor={palette.pinPoint} />
         )}
         {place && (
           <Marker
             coordinate={{ latitude: place.lat, longitude: place.lng }}
             title={place.name.split(',')[0]}
             description={place.name}
-            pinColor="#2f80ed"
+            pinColor={palette.pinPlace}
           />
         )}
       </MapView>
 
       <PlaceSearch onSelect={goToPlace} />
 
-      {/* Botón "ir a mi posición" */}
       <View style={styles.fabWrap}>
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
         {(basemap === 'carta' || basemap === 'mixta') && <ChartLegendButton />}
-        <Pressable
-          style={[styles.fab, locLoading && { opacity: 0.6 }]}
-          onPress={locate}
-          accessibilityLabel="Centrar en mi posición"
-        >
-          <Text style={styles.fabText}>◎</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.fab, styles.fabNew]}
-          onPress={() => router.push('/spot/new')}
-          accessibilityLabel="Añadir spot"
-        >
-          <Text style={styles.fabText}>+</Text>
-        </Pressable>
+        <IconButton icon="locate" label="Centrar en mi posición" onPress={locate} style={locLoading ? { opacity: 0.6 } : undefined} />
+        <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
       </View>
 
       {tapped && <PointInfoPanel point={tapped} onClose={() => setTapped(null)} />}
@@ -143,17 +144,29 @@ export default function MapaScreen() {
       {selected && (
         <View style={styles.panel}>
           <SpotCard spot={selected} onPress={() => router.push(`/spot/${selected.id}`)} />
-          <Pressable onPress={() => setSelected(null)}>
-            <ThemedText variant="small" style={styles.close}>✕ cerrar</ThemedText>
+          <Pressable
+            onPress={() => setSelected(null)}
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar tarjeta del spot"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={22} color={palette.foamSoft} />
           </Pressable>
         </View>
       )}
 
       {(locError || spotsError) && (
         <View style={styles.errBanner}>
-          <ThemedText variant="small" style={{ color: palette.coral }}>
-            {locError ?? spotsError}
-          </ThemedText>
+          <Banner
+            tone="error"
+            text={spotsError ? 'No se pudieron cargar los spots. Comprueba tu conexión.' : 'No se pudo obtener tu ubicación. Activa el GPS y los permisos.'}
+          />
+        </View>
+      )}
+      {!spotsLoading && !spotsError && spots.length === 0 && !tapped && !selected && (
+        <View style={styles.hint} pointerEvents="none">
+          <Banner text="Sin spots todavía. Mantén pulsado el mapa para crear el primero." />
         </View>
       )}
       {spotsLoading && (
@@ -169,24 +182,18 @@ export default function MapaScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.abyss },
   fabWrap: { position: 'absolute', bottom: spacing.l + 4, right: spacing.m, gap: spacing.s, alignItems: 'flex-end' },
-  fab: {
-    width: 48, height: 48, borderRadius: radii.pill,
-    backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  fabNew: { backgroundColor: palette.coral, borderColor: palette.coral },
-  fabText: { color: palette.foam, fontSize: 24, fontWeight: '700' },
   panel: {
     position: 'absolute', bottom: spacing.l + 4, left: spacing.m, right: spacing.m + 60,
     backgroundColor: palette.surface, borderRadius: radii.m,
     borderWidth: 1, borderColor: palette.line, padding: spacing.m,
   },
-  close: { alignSelf: 'flex-end', marginTop: spacing.xs, color: palette.foamSoft },
-  errBanner: {
-    position: 'absolute', top: spacing.m + 56, left: spacing.m, right: spacing.m,
-    backgroundColor: palette.abyss, borderWidth: 1, borderColor: palette.coral,
-    borderRadius: radii.s, padding: spacing.s,
+  closeBtn: { position: 'absolute', top: 0, right: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  pin: {
+    width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: palette.abyss,
   },
+  hint: { position: 'absolute', bottom: spacing.l + 4, left: spacing.m, right: spacing.m + 64 },
+  errBanner: { position: 'absolute', top: spacing.m + 60, left: spacing.m, right: spacing.m },
   loading: { position: 'absolute', top: '50%', left: 0, right: 0, alignItems: 'center' },
 });
 

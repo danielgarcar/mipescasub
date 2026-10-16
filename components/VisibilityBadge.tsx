@@ -13,8 +13,8 @@ export function accesoSpot(spot: Spot, userId?: string | null): Acceso {
 
 const INFO: Record<Acceso, { icon: keyof typeof Ionicons.glyphMap; label: string; color: string }> = {
   publico: { icon: 'earth', label: 'Público', color: palette.ok },
-  privado: { icon: 'lock-closed', label: 'Privado', color: palette.coral },
-  compartido: { icon: 'people', label: 'Compartido contigo', color: palette.buoy },
+  privado: { icon: 'lock-closed', label: 'Privado', color: palette.pinPoint },
+  compartido: { icon: 'people', label: 'Compartido contigo', color: palette.pinShared },
 };
 
 export function VisibilityBadge({ acceso }: { acceso: Acceso }) {
@@ -30,8 +30,15 @@ export function VisibilityBadge({ acceso }: { acceso: Acceso }) {
 /** Color del marcador en el mapa según el acceso. */
 export const COLOR_ACCESO: Record<Acceso, string> = {
   publico: palette.buoy,
-  privado: palette.coral,
-  compartido: '#7aa7ff',
+  privado: palette.pinPoint,
+  compartido: palette.pinShared,
+};
+
+/** Icono del marcador del mapa según el acceso (forma, no solo color). */
+export const ICONO_ACCESO: Record<Acceso, keyof typeof Ionicons.glyphMap> = {
+  publico: 'earth',
+  privado: 'lock-closed',
+  compartido: 'people',
 };
 
 const styles = StyleSheet.create({

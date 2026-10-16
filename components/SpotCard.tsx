@@ -17,7 +17,7 @@ const FONDO_LABEL: Record<string, string> = {
 export function SpotCard({ spot, onPress, style }: { spot: Spot; onPress?: () => void; style?: ViewProps['style'] }) {
   const { user } = useAuth();
   return (
-    <Pressable onPress={onPress} style={[card, style ?? null]}>
+    <Pressable onPress={onPress} style={[card, style ?? null]} accessibilityRole="button" accessibilityLabel={`Abrir spot ${spot.nombre}`}>
       <View style={styles.row}>
         <ThemedText variant="h3" style={{ flex: 1 }} numberOfLines={1}>{spot.nombre}</ThemedText>
         <View style={styles.badge}>

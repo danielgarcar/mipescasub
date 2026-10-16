@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: palette.abyss, borderRadius: radii.s, color: palette.foam, borderWidth: 1,
     borderColor: palette.line, paddingHorizontal: spacing.m, paddingVertical: 10,
   },
-  addBtn: { backgroundColor: palette.coral, borderRadius: radii.s, width: 46, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { backgroundColor: palette.buoy, borderRadius: radii.s, width: 46, alignItems: 'center', justifyContent: 'center' },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s, paddingVertical: 4 },
   userName: { color: palette.foam, fontSize: 14, fontWeight: '600' },
   userMail: { color: palette.foamSoft, fontSize: 11 },

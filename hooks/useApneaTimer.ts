@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 
 export type ApneaPhase = 'idle' | 'prepare' | 'apnea' | 'done';
 
@@ -17,6 +18,8 @@ export interface TableState {
   totalSeries: number;
   /** segundos restantes de la fase actual */
   secondsLeft: number;
+  /** duración total de la fase actual (para barras de progreso) */
+  phaseTotal: number;
   isRunning: boolean;
   start: () => void;
   pause: () => void;
@@ -36,13 +39,22 @@ function buzz(kind: 'start' | 'change' | 'end') {
   }
 }
 
+function say(text: string) {
+  if (Platform.OS === 'web') return;
+  Speech.stop();
+  Speech.speak(text, { language: 'es-ES', rate: 1.05 });
+}
+
 export function useApneaTimer(
   segments: { holdSec: number; prepareSec: number; fase: 'apnea' | 'oxigenacion' }[],
+  /** Voz y cuenta atrás hablada (la vibración siempre se mantiene). */
+  voice = true,
 ): TableState {
   const [phase, setPhase] = useState<ApneaPhase>('idle');
   const [currentSerie, setCurrentSerie] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [phaseTotal, setPhaseTotal] = useState(0);
 
   // Guardamos la serie activa y su fase para no leer el índice fuera de rango en el interval.
   const segRef = useRef<number>(0); // 0-based index into segments
@@ -86,6 +98,7 @@ export function useApneaTimer(
       segRef.current = segIndex;
       setPhase(half === 'prepare' ? 'prepare' : 'apnea');
       setSecondsLeft(dur);
+      setPhaseTotal(dur);
       if (half === 'apnea') setCurrentSerie(segIndex + 1);
       buzz('change');
       if (timerRef.current) clearInterval(timerRef.current);
@@ -159,8 +172,28 @@ export function useApneaTimer(
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      Speech.stop();
     };
   }, []);
 
-  return { phase, currentSerie, totalSeries: segments.length, secondsLeft, isRunning, start, pause, resume, stop, skip };
+  // Avisos de cambio de fase (para quien entrena con los ojos cerrados).
+  useEffect(() => {
+    if (!voice) return;
+    if (phase === 'prepare') say('Respira');
+    else if (phase === 'apnea') say('Apnea');
+    else if (phase === 'done') say('Tabla completada');
+  }, [phase, currentSerie, voice]);
+
+  // Cuenta atrás: 10 s (solo en apnea) y 3-2-1 con vibración corta.
+  useEffect(() => {
+    if (!isRunning) return;
+    if (secondsLeft >= 1 && secondsLeft <= 3) {
+      if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      if (voice) say(String(secondsLeft));
+    } else if (secondsLeft === 10 && voice) {
+      say('Diez segundos');
+    }
+  }, [secondsLeft, isRunning, voice]);
+
+  return { phase, currentSerie, totalSeries: segments.length, secondsLeft, phaseTotal, isRunning, start, pause, resume, stop, skip };
 }

@@ -6,7 +6,7 @@ export function StatCard({ label, value, sub, style }: { label: string; value: s
   return (
     <View style={[card, styles.card, style ?? null]}>
       <ThemedText variant="small" style={styles.label}>{label}</ThemedText>
-      <ThemedText variant="h1">{value}</ThemedText>
+      <ThemedText variant="h1" numberOfLines={1} adjustsFontSizeToFit>{value}</ThemedText>
       {!!sub && <ThemedText variant="small">{sub}</ThemedText>}
     </View>
   );

@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, Pressable, Text, TextInput, Modal } from 'react-native';
+import { View, FlatList, StyleSheet, Modal, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Alert } from '@/lib/alert';
 import { ThemedText } from '@/components/ThemedText';
+import { Button, EmptyState, ErrorState, Fab, Field } from '@/components/ui';
 import { palette, card, spacing, radii } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import type { ForoHilo } from '@/types';
 
 export default function ForoScreen() {
+  const router = useRouter();
+  const [publicando, setPublicando] = useState(false);
+  const [errores, setErrores] = useState<{ titulo?: string; contenido?: string }>({});
   const [hilos, setHilos] = useState<ForoHilo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,29 +78,33 @@ export default function ForoScreen() {
   useEffect(() => { load(); }, [load]);
 
   const publish = async () => {
-    if (!titulo.trim() || !contenido.trim()) {
-      Alert.alert('Campos incompletos', 'Rellena título y contenido antes de publicar.');
-      return;
-    }
+    const e: { titulo?: string; contenido?: string } = {};
+    if (!titulo.trim()) e.titulo = 'Escribe un título.';
+    if (!contenido.trim()) e.contenido = 'Escribe el mensaje.';
+    setErrores(e);
+    if (e.titulo || e.contenido) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) {
       Alert.alert('Inicia sesión', 'Necesitas una cuenta para abrir un hilo (pestaña Perfil).');
       return;
     }
+    setPublicando(true);
     const { data: hilo, error } = await supabase
       .from('pescasub_foro_hilos')
       .insert({ usuario: auth.user.id, titulo: titulo.trim(), categoria: 'general' })
       .select('id')
       .single();
     if (error || !hilo) {
-      Alert.alert('Error', error?.message ?? 'No se pudo crear el hilo.');
+      setPublicando(false);
+      Alert.alert('No se pudo publicar', 'Inténtalo de nuevo en unos segundos.');
       return;
     }
     const { error: errMsg } = await supabase
       .from('pescasub_foro_mensajes')
       .insert({ hilo: hilo.id, usuario: auth.user.id, contenido: contenido.trim() });
+    setPublicando(false);
     if (errMsg) {
-      Alert.alert('Error', errMsg.message);
+      Alert.alert('No se pudo publicar', 'Inténtalo de nuevo en unos segundos.');
       return;
     }
     setModalVisible(false);
@@ -106,70 +115,60 @@ export default function ForoScreen() {
 
   return (
     <View style={styles.root}>
-      {loading && <ThemedText variant="body" style={styles.center}>Cargando hilos…</ThemedText>}
-      {!loading && hilos.length === 0 && (
-        <ThemedText variant="body" style={styles.center}>
-          Todavía no hay discusiones. ¡Abre el primer hilo!
-        </ThemedText>
+      {error && hilos.length === 0 ? (
+        <ErrorState onRetry={load} />
+      ) : !loading && hilos.length === 0 ? (
+        <EmptyState
+          icon="chatbubbles-outline"
+          title="Todavía no hay discusiones"
+          text="Pregunta por un spot, el material o las condiciones del mar."
+          actionLabel="Abrir el primer hilo"
+          onAction={() => setModalVisible(true)}
+        />
+      ) : (
+        <FlatList
+          data={hilos}
+          keyExtractor={(h) => h.id}
+          contentContainerStyle={{ padding: spacing.m, paddingBottom: 96, gap: spacing.s }}
+          refreshing={loading}
+          onRefresh={load}
+          renderItem={({ item }) => (
+            <Pressable
+              style={card}
+              onPress={() => router.push({ pathname: '/foro/[id]', params: { id: item.id, titulo: item.titulo } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Hilo: ${item.titulo}`}
+            >
+              <ThemedText variant="h3" numberOfLines={1}>{item.titulo}</ThemedText>
+              <ThemedText variant="body" numberOfLines={2}>{item.contenido}</ThemedText>
+              <View style={styles.meta}>
+                <ThemedText variant="small">
+                  {item.autor ?? 'Anónimo'}
+                  {item.respuestas_count ? ` · ${item.respuestas_count} respuesta(s)` : ''}
+                </ThemedText>
+                {item.created_at && (
+                  <ThemedText variant="small">{new Date(item.created_at).toLocaleDateString('es-ES')}</ThemedText>
+                )}
+              </View>
+            </Pressable>
+          )}
+        />
       )}
-      {error && <ThemedText variant="body" style={styles.center}>{error}</ThemedText>}
 
-      <FlatList
-        data={hilos}
-        keyExtractor={(h) => h.id}
-        contentContainerStyle={{ padding: spacing.m, gap: spacing.s }}
-        renderItem={({ item }) => (
-          <View style={card}>
-            <ThemedText variant="h3" numberOfLines={1}>{item.titulo}</ThemedText>
-            <ThemedText variant="body" numberOfLines={2}>{item.contenido}</ThemedText>
-            <View style={styles.meta}>
-              <ThemedText variant="small">
-                {item.autor ?? 'Anónimo'}
-                {item.respuestas_count ? ` · ${item.respuestas_count} respuesta(s)` : ''}
-              </ThemedText>
-              {item.created_at && (
-                <ThemedText variant="small">{new Date(item.created_at).toLocaleDateString('es-ES')}</ThemedText>
-              )}
-            </View>
-          </View>
-        )}
-      />
+      <Fab label="Nuevo hilo" onPress={() => setModalVisible(true)} />
 
-      <Pressable style={styles.fab} onPress={() => setModalVisible(true)} accessibilityLabel="Nuevo hilo">
-        <Text style={styles.fabText}>+</Text>
-      </Pressable>
-
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalBg}>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modalBg} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalCard}>
             <ThemedText variant="h2">Nuevo hilo</ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder="Título"
-              placeholderTextColor={palette.foamSoft}
-              value={titulo}
-              onChangeText={setTitulo}
-              maxLength={120}
-            />
-            <TextInput
-              style={[styles.input, styles.inputMulti]}
-              placeholder="¿De qué quieres hablar?"
-              placeholderTextColor={palette.foamSoft}
-              value={contenido}
-              onChangeText={setContenido}
-              multiline
-              numberOfLines={5}
-            />
+            <Field label="Título" value={titulo} onChangeText={setTitulo} maxLength={120} error={errores.titulo} />
+            <Field label="Mensaje" value={contenido} onChangeText={setContenido} multiline error={errores.contenido} />
             <View style={styles.modalActions}>
-              <Pressable style={styles.btnGhost} onPress={() => setModalVisible(false)}>
-                <Text style={styles.btnGhostText}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.btnSolid} onPress={publish}>
-                <Text style={styles.btnSolidText}>Publicar</Text>
-              </Pressable>
+              <Button label="Cancelar" variant="ghost" compact onPress={() => setModalVisible(false)} />
+              <Button label="Publicar" compact onPress={publish} loading={publicando} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -177,28 +176,11 @@ export default function ForoScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.abyss },
-  center: { textAlign: 'center', marginTop: spacing.xl, paddingHorizontal: spacing.l },
   meta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
-  fab: {
-    position: 'absolute', right: spacing.m, bottom: spacing.m + 60,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: palette.coral, alignItems: 'center', justifyContent: 'center',
-  },
-  fabText: { color: palette.foam, fontSize: 28, fontWeight: '700' },
   modalBg: { flex: 1, backgroundColor: 'rgba(2,22,39,0.8)', justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: palette.surface, padding: spacing.m,
     borderTopLeftRadius: radii.l, borderTopRightRadius: radii.l, gap: spacing.s,
   },
-  input: {
-    backgroundColor: palette.abyss, borderRadius: radii.s,
-    color: palette.foam, paddingHorizontal: spacing.m, paddingVertical: spacing.s,
-    borderWidth: 1, borderColor: palette.line,
-  },
-  inputMulti: { minHeight: 110, textAlignVertical: 'top' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.s, marginTop: spacing.xs },
-  btnGhost: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: radii.s, borderWidth: 1, borderColor: palette.line },
-  btnGhostText: { color: palette.foam },
-  btnSolid: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: radii.s, backgroundColor: palette.coral },
-  btnSolidText: { color: palette.foam, fontWeight: '700' },
 });

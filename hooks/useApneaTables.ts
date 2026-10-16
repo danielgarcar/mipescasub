@@ -14,11 +14,15 @@ function fmt(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** Descanso inicial y mínimo de la tabla CO₂ (se va acortando serie a serie). */
+const START_REST_SEC = 120;
+const MIN_REST_SEC = 15;
+
 /** CO2 table: apnea fija (hold) y preparación decreciente. */
 export function buildCo2Table(holdSec = 120, series = 8, stepSec = 15): ApneaTable {
   const seg: ApneaSegment[] = [];
   for (let i = 0; i < series; i++) {
-    const prepare = Math.max(holdSec, holdSec - stepSec * i);
+    const prepare = Math.max(MIN_REST_SEC, START_REST_SEC - stepSec * i);
     seg.push({ holdSec, prepareSec: prepare, fase: 'apnea' as const, serie: i + 1 });
   }
   return {

@@ -37,7 +37,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={navTheme}>
-      <StatusBar style="light" backgroundColor={palette.abyss} />
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: palette.abyss },
@@ -55,6 +55,7 @@ export default function RootLayout() {
           <Stack.Screen name="spot/[id]" />
           <Stack.Screen name="spot/new" />
           <Stack.Screen name="captura/new" />
+          <Stack.Screen name="foro/[id]" />
         </Stack.Protected>
       </Stack>
     </ThemeProvider>

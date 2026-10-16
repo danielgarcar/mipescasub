@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FlatList, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ThemedText } from './ThemedText';
+import { EmptyState, ErrorState } from './ui';
 import { useEspecies } from '@/hooks/useSpots';
 import { palette, card, spacing, radii } from '@/lib/theme';
 import type { Especie } from '@/types';
@@ -9,7 +10,7 @@ const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 
 /** Catálogo de especies con buscador; cada una enlaza a su ficha en galiciapesca.com. */
 export function EspeciesList() {
-  const { especies, loading, error } = useEspecies();
+  const { especies, loading, error, reload } = useEspecies();
   const [q, setQ] = useState('');
 
   const filtradas = useMemo(() => {
@@ -31,9 +32,9 @@ export function EspeciesList() {
       {loading ? (
         <ThemedText variant="body" style={styles.center}>Cargando especies…</ThemedText>
       ) : error ? (
-        <ThemedText variant="body" style={styles.center}>{error}</ThemedText>
+        <ErrorState onRetry={reload} />
       ) : especies.length === 0 ? (
-        <ThemedText variant="body" style={styles.center}>El catálogo de especies aún está vacío.</ThemedText>
+        <EmptyState icon="fish-outline" title="Catálogo vacío" text="Aún no hay especies cargadas." />
       ) : (
         <FlatList
           data={filtradas}
@@ -69,7 +70,7 @@ function EspecieCard({ e }: { e: Especie }) {
           </ThemedText>
         )}
         {e.talla_minima_cm != null && <ThemedText variant="small">Talla mínima: {e.talla_minima_cm} cm</ThemedText>}
-        <Text style={styles.link}>Ver ficha en galiciapesca.com ↗</Text>
+        <Text style={styles.link}>Ver ficha en galiciapesca.com</Text>
       </View>
     </Pressable>
   );

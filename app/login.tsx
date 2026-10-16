@@ -363,11 +363,11 @@ export default function LoginScreen() {
                   disabled={busy}
                 >
                   {busy ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color={palette.onAccent} />
                   ) : (
                     <>
                       <Text style={styles.btnText}>{boton}</Text>
-                      <Ionicons name="arrow-forward" size={18} color="#fff" />
+                      <Ionicons name="arrow-forward" size={18} color={palette.onAccent} />
                     </>
                   )}
                 </Pressable>
@@ -457,10 +457,10 @@ const styles = StyleSheet.create({
   fieldFocus: { borderColor: palette.buoy, backgroundColor: 'rgba(255,255,255,0.12)' },
   input: { flex: 1, color: '#fff', paddingVertical: 14, fontSize: 15, outlineStyle: 'none' } as any,
   btn: {
-    backgroundColor: palette.coral, paddingVertical: 15, borderRadius: 14, marginTop: 6,
+    backgroundColor: palette.buoy, paddingVertical: 15, borderRadius: 14, marginTop: 6,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  btnText: { color: '#fff', fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
+  btnText: { color: palette.onAccent, fontWeight: '800', fontSize: 16, letterSpacing: 0.3 },
   msgBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 12, borderWidth: 1 },
   msgError: { backgroundColor: 'rgba(255,107,87,0.12)', borderColor: 'rgba(255,107,87,0.35)' },
   msgOk: { backgroundColor: 'rgba(46,211,168,0.12)', borderColor: 'rgba(46,211,168,0.35)' },

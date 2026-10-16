@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { palette, spacing, radii } from '@/lib/theme';
+import { IconButton } from './ui';
 
 export type Basemap = 'carta' | 'osm' | 'satelite' | 'mixta';
 
@@ -11,21 +13,38 @@ const OPCIONES: { key: Basemap; label: string }[] = [
   { key: 'mixta', label: 'Satélite + carta' },
 ];
 
-/** Selector de vista: carta náutica (ENC del IHM), OpenStreetMap, satélite o satélite con los datos de la carta encima. */
+/**
+ * Botón único "Capas": abre una hoja con las 4 vistas. Así el mapa queda libre
+ * en lugar de llevar 4 pastillas fijas encima.
+ */
 export function BasemapSwitcher({ value, onChange }: { value: Basemap; onChange: (b: Basemap) => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <View style={styles.switcher}>
-      {OPCIONES.map((o) => (
-        <Pressable
-          key={o.key}
-          style={[styles.pill, value === o.key && styles.pillActive]}
-          onPress={() => onChange(o.key)}
-          accessibilityLabel={`Vista ${o.label}`}
-        >
-          <Text style={[styles.pillText, value === o.key && styles.pillTextActive]}>{o.label}</Text>
+    <>
+      <IconButton icon="layers" label="Cambiar capas del mapa" onPress={() => setOpen(true)} />
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setOpen(false)} accessibilityLabel="Cerrar">
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.title}>Vista del mapa</Text>
+            {OPCIONES.map((o) => {
+              const on = value === o.key;
+              return (
+                <Pressable
+                  key={o.key}
+                  style={[styles.opt, on && styles.optOn]}
+                  onPress={() => { onChange(o.key); setOpen(false); }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                >
+                  <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={22} color={on ? palette.buoy : palette.foamSoft} />
+                  <Text style={[styles.optText, on && { color: palette.foam, fontWeight: '700' }]}>{o.label}</Text>
+                </Pressable>
+              );
+            })}
+          </Pressable>
         </Pressable>
-      ))}
-    </View>
+      </Modal>
+    </>
   );
 }
 
@@ -47,9 +66,7 @@ export function ChartLegendButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Pressable style={styles.fab} onPress={() => setOpen(true)} accessibilityLabel="Leyenda de la carta">
-        <Text style={styles.fabText}>?</Text>
-      </Pressable>
+      <IconButton icon="help-circle-outline" label="Leyenda de la carta" onPress={() => setOpen(true)} />
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
@@ -60,7 +77,7 @@ export function ChartLegendButton() {
               <Text style={styles.section}>Abreviaturas</Text>
               {OTROS.map(([en, es]) => <Row key={en} en={en} es={es} />)}
             </ScrollView>
-            <Pressable style={styles.close} onPress={() => setOpen(false)}>
+            <Pressable style={styles.close} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Cerrar leyenda">
               <Text style={styles.closeText}>Cerrar</Text>
             </Pressable>
           </Pressable>
@@ -80,29 +97,19 @@ function Row({ en, es }: { en: string; es: string }) {
 }
 
 const styles = StyleSheet.create({
-  switcher: {
-    backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line,
-    borderRadius: radii.m, padding: 4, gap: 4,
-  },
-  pill: { paddingVertical: 6, paddingHorizontal: spacing.s, borderRadius: radii.s },
-  pillActive: { backgroundColor: palette.coral },
-  pillText: { color: palette.foamSoft, fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  pillTextActive: { color: palette.foam },
-  fab: {
-    width: 48, height: 48, borderRadius: radii.pill, backgroundColor: palette.surface,
-    borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center',
-  },
-  fabText: { color: palette.foam, fontSize: 22, fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: spacing.m },
   sheet: {
-    backgroundColor: palette.surface, borderRadius: radii.m, borderWidth: 1, borderColor: palette.line,
+    backgroundColor: palette.surface, borderRadius: radii.l, borderWidth: 1, borderColor: palette.line,
     padding: spacing.m, width: '100%', maxWidth: 440, maxHeight: '85%',
   },
-  title: { color: palette.foam, fontSize: 16, fontWeight: '700', marginBottom: spacing.s },
+  title: { color: palette.foam, fontSize: 17, fontWeight: '700', marginBottom: spacing.s },
+  opt: { flexDirection: 'row', alignItems: 'center', gap: spacing.s, minHeight: 52, paddingHorizontal: spacing.s, borderRadius: radii.m },
+  optOn: { backgroundColor: palette.highlight },
+  optText: { color: palette.foamSoft, fontSize: 16 },
   section: { color: palette.buoy, fontSize: 12, fontWeight: '700', marginTop: spacing.s, marginBottom: 4 },
   row: { flexDirection: 'row', paddingVertical: 3, gap: spacing.s },
   en: { color: palette.foamSoft, width: '38%', fontSize: 13 },
   es: { color: palette.foam, flex: 1, fontSize: 13 },
-  close: { alignSelf: 'flex-end', marginTop: spacing.s, padding: spacing.s },
-  closeText: { color: palette.buoy, fontWeight: '700' },
+  close: { alignSelf: 'flex-end', marginTop: spacing.s, minHeight: 48, paddingHorizontal: spacing.m, justifyContent: 'center' },
+  closeText: { color: palette.buoy, fontWeight: '700', fontSize: 16 },
 });

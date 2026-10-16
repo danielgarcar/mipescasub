@@ -98,7 +98,7 @@ export function SpotComentarios({ spotId, userId, esDueno }: Props) {
           maxLength={1000}
         />
         <Pressable style={[styles.send, (!texto.trim() || enviando) && { opacity: 0.5 }]} onPress={enviar} disabled={!texto.trim() || enviando}>
-          {enviando ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
+          {enviando ? <ActivityIndicator color={palette.onAccent} /> : <Ionicons name="send" size={18} color={palette.onAccent} />}
         </Pressable>
       </View>
     </View>
@@ -118,5 +118,5 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: palette.abyss, borderRadius: radii.s, color: palette.foam, borderWidth: 1,
     borderColor: palette.line, paddingHorizontal: spacing.m, paddingVertical: 10, maxHeight: 110,
   },
-  send: { backgroundColor: palette.coral, borderRadius: radii.s, width: 46, height: 44, alignItems: 'center', justifyContent: 'center' },
+  send: { backgroundColor: palette.buoy, borderRadius: radii.s, width: 46, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

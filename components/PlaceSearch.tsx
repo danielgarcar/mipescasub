@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { palette, spacing, radii } from '@/lib/theme';
 
@@ -63,6 +64,7 @@ export function PlaceSearch({ onSelect }: Props) {
     <View style={styles.wrap}>
       <View style={styles.inputRow}>
         <TextInput
+          accessibilityLabel="Buscar lugar"
           style={styles.input}
           value={query}
           onChangeText={setQuery}
@@ -73,8 +75,8 @@ export function PlaceSearch({ onSelect }: Props) {
         />
         {loading && <ActivityIndicator color={palette.buoy} />}
         {!!query && !loading && (
-          <Pressable onPress={() => setQuery('')} accessibilityLabel="Borrar búsqueda">
-            <Text style={styles.clear}>✕</Text>
+          <Pressable onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Borrar búsqueda" hitSlop={8} style={styles.clear}>
+            <Ionicons name="close-circle" size={20} color={palette.foamSoft} />
           </Pressable>
         )}
       </View>
@@ -107,13 +109,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line,
     borderRadius: radii.m, paddingHorizontal: spacing.m,
   },
-  input: { flex: 1, color: palette.foam, paddingVertical: 10, fontSize: 15 },
-  clear: { color: palette.foamSoft, fontSize: 16, padding: 4 },
+  input: { flex: 1, color: palette.foam, minHeight: 48, fontSize: 16 },
+  clear: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
   list: {
     marginTop: 4, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line,
     borderRadius: radii.m, maxHeight: 280, overflow: 'hidden',
   },
-  item: { paddingHorizontal: spacing.m, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: palette.line },
+  item: { paddingHorizontal: spacing.m, paddingVertical: 14, minHeight: 48, borderBottomWidth: 1, borderBottomColor: palette.line },
   itemText: { color: palette.foam, fontSize: 13 },
   msg: { color: palette.foamSoft, padding: spacing.m, fontSize: 13 },
   credit: { color: palette.foamSoft, fontSize: 10, textAlign: 'right', padding: 4 },

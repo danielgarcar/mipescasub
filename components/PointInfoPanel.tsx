@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette, spacing, radii } from '@/lib/theme';
 import { formatDecimal, formatNautical, getPointInfo, type PointInfo } from '@/lib/pointInfo';
@@ -39,8 +40,8 @@ export function PointInfoPanel({ point, onClose }: Props) {
 
   return (
     <View style={styles.panel}>
-      <Pressable style={styles.x} onPress={onClose} accessibilityLabel="Cerrar">
-        <Text style={styles.xText}>✕</Text>
+      <Pressable style={styles.x} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar panel" hitSlop={8}>
+        <Ionicons name="close" size={22} color={palette.foamSoft} />
       </Pressable>
 
       <Text style={styles.label}>Posición GPS</Text>
@@ -49,7 +50,7 @@ export function PointInfoPanel({ point, onClose }: Props) {
 
       <View style={styles.tabs}>
         {([['fondo', 'Fondo'], ['tiempo', 'Tiempo'], ['mareas', 'Mareas']] as [Tab, string][]).map(([k, l]) => (
-          <Pressable key={k} style={[styles.tab, tab === k && styles.tabActive]} onPress={() => setTab(k)}>
+          <Pressable key={k} style={[styles.tab, tab === k && styles.tabActive]} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: tab === k }}>
             <Text style={[styles.tabText, tab === k && styles.tabTextActive]}>{l}</Text>
           </Pressable>
         ))}
@@ -220,7 +221,7 @@ const styles = StyleSheet.create({
     maxHeight: '70%', backgroundColor: palette.surface, borderRadius: radii.m, borderWidth: 1,
     borderColor: palette.line, padding: spacing.m,
   },
-  x: { position: 'absolute', top: 6, right: 8, padding: 6, zIndex: 1 },
+  x: { position: 'absolute', top: 4, right: 4, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   xText: { color: palette.foamSoft, fontSize: 16 },
   body: { marginTop: 2 },
   label: { color: palette.buoy, fontSize: 11, fontWeight: '700', marginTop: spacing.s, textTransform: 'uppercase' },
@@ -231,10 +232,10 @@ const styles = StyleSheet.create({
   warn: { color: palette.foamSoft, fontSize: 10, marginTop: spacing.s, fontStyle: 'italic' },
   loading: { flexDirection: 'row', alignItems: 'center', gap: spacing.s, marginTop: spacing.m },
   tabs: { flexDirection: 'row', gap: 6, marginTop: spacing.s },
-  tab: { paddingVertical: 5, paddingHorizontal: spacing.m, borderRadius: radii.pill, borderWidth: 1, borderColor: palette.line },
-  tabActive: { backgroundColor: palette.coral, borderColor: palette.coral },
-  tabText: { color: palette.foamSoft, fontSize: 12, fontWeight: '600' },
-  tabTextActive: { color: palette.foam },
+  tab: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.m, borderRadius: radii.pill, borderWidth: 1, borderColor: palette.line },
+  tabActive: { backgroundColor: palette.buoy, borderColor: palette.buoy },
+  tabText: { color: palette.foamSoft, fontSize: 13, fontWeight: '600' },
+  tabTextActive: { color: palette.onAccent, fontWeight: '700' },
   fila: { flexDirection: 'row', paddingVertical: 2, gap: spacing.s },
   k: { color: palette.foamSoft, width: 96, fontSize: 13 },
   v: { color: palette.foam, flex: 1, fontSize: 13 },
