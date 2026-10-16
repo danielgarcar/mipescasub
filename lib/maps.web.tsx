@@ -227,7 +227,7 @@ export const UrlTile = ({ urlTemplate, maximumZ, opacity }: any) => {
   return null;
 };
 
-export const Marker = ({ coordinate, title, description, pinColor, onPress }: any) => {
+export const Marker = ({ coordinate, title, description, pinColor, glyph, onPress }: any) => {
   const ctx = useContext(MapCtx);
   const onPressRef = useRef(onPress);
   onPressRef.current = onPress;
@@ -238,7 +238,7 @@ export const Marker = ({ coordinate, title, description, pinColor, onPress }: an
       className: '',
       iconSize: [18, 18],
       iconAnchor: [9, 9],
-      html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.6)"></div>`,
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:#fff;font:700 12px/1 sans-serif">${glyph ?? ''}</div>`,
     });
     const m = ctx.L.marker([coordinate.latitude, coordinate.longitude], { icon }).addTo(ctx.map);
     if (title) {
@@ -257,7 +257,7 @@ export const Marker = ({ coordinate, title, description, pinColor, onPress }: an
     return () => {
       m.remove();
     };
-  }, [ctx, coordinate.latitude, coordinate.longitude, title, description, pinColor]);
+  }, [ctx, coordinate.latitude, coordinate.longitude, title, description, pinColor, glyph]);
   return null;
 };
 
@@ -279,8 +279,23 @@ export const Circle = ({ center, radius, strokeColor, fillColor, strokeWidth }: 
   return null;
 };
 
+export const Polyline = ({ coordinates, strokeColor, strokeWidth, lineDashPattern }: any) => {
+  const ctx = useContext(MapCtx);
+  const clave = JSON.stringify(coordinates);
+  useEffect(() => {
+    if (!ctx) return;
+    const l = ctx.L.polyline(
+      (coordinates as { latitude: number; longitude: number }[]).map((c) => [c.latitude, c.longitude]),
+      { color: strokeColor ?? '#e5484d', weight: strokeWidth ?? 2, dashArray: lineDashPattern?.join(' ') },
+    ).addTo(ctx.map);
+    return () => {
+      l.remove();
+    };
+  }, [ctx, clave, strokeColor, strokeWidth, lineDashPattern?.join(' ')]);
+  return null;
+};
+
 const Nada = (_props: any) => null;
-export const Polyline = Nada;
 export const Polygon = Nada;
 export const Callout = Nada;
 export type { LatLng };

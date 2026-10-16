@@ -20,6 +20,8 @@ export const color = {
   ok: '#7CCB7F',         // éxito / público
   warn: '#F2C265',       // aviso (seguridad apnea)
   danger: '#FF7A66',     // error / destructivo / privado
+  spot: '#2FD36B',       // marcador de spot (diana verde)
+  limit: '#E5484D',     // límites de pesca submarina prohibida (rojo franco, distinto del salmón `danger`)
 } as const;
 
 /** Alias heredados: mantienen compilando el código anterior. Preferir `color`. */
@@ -41,6 +43,8 @@ export const palette = {
   pinPoint: color.warn,
   pinPlace: '#7AA7FF',
   pinShared: '#7AA7FF',
+  limit: color.limit,
+  spot: color.spot,
 };
 
 /** Tamaño mínimo de zona táctil (guantes, manos mojadas). */

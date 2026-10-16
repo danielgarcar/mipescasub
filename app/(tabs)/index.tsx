@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker, Circle } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker, Circle, Polyline } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LIMITES_RIAS } from '@/lib/zonasProhibidas';
+import { LimitePanel } from '@/components/LimitePanel';
+import { XuntaEmblema } from '@/components/XuntaEmblema';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuth';
-import { accesoSpot, COLOR_ACCESO, ICONO_ACCESO } from '@/components/VisibilityBadge';
+import { accesoSpot } from '@/components/VisibilityBadge';
+import { DianaSpot } from '@/components/DianaSpot';
 import { Banner, IconButton } from '@/components/ui';
 import { useSpots } from '@/hooks/useSpots';
 import { SpotCard } from '@/components/SpotCard';
@@ -35,6 +40,21 @@ export default function MapaScreen() {
   const [selected, setSelected] = useState<Spot | null>(null);
   const { salidas, reload: reloadSalidas } = useSalidasVisibles();
   const [salidaSel, setSalidaSel] = useState<SalidaVisible | null>(null);
+
+  // Filtro "Límites": puntos rojos y líneas discontinuas donde empieza la zona de pesca submarina prohibida.
+  const [limites, setLimites] = useState(true);
+  const [limiteSel, setLimiteSel] = useState<{ ria: string; punto: string; otro?: string } | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem('mipescasub.mapa.limites')
+      .then((v) => v !== null && setLimites(v === '1'))
+      .catch(() => {});
+  }, []);
+  const alternarLimites = () => {
+    const nuevo = !limites;
+    setLimites(nuevo);
+    if (!nuevo) setLimiteSel(null);
+    AsyncStorage.setItem('mipescasub.mapa.limites', nuevo ? '1' : '0').catch(() => {});
+  };
   // Llega con lat/lng cuando se pulsa "Ver zona" en una salida.
   const foco = useLocalSearchParams<{ lat?: string; lng?: string }>();
 
@@ -74,6 +94,7 @@ export default function MapaScreen() {
   const onMarkerPress = useCallback((s: Spot) => {
     setTapped(null);
     setSalidaSel(null);
+    setLimiteSel(null);
     setSelected(s);
   }, []);
 
@@ -99,6 +120,7 @@ export default function MapaScreen() {
           const c = e.nativeEvent.coordinate;
           setSelected(null);
           setSalidaSel(null);
+          setLimiteSel(null);
           setTapped({ lat: c.latitude, lng: c.longitude });
         }}
         onLongPress={(e: any) => {
@@ -125,15 +147,53 @@ export default function MapaScreen() {
               accessibilityLabel={`Spot ${s.nombre}`}
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 0.5 }}
+              pinColor={palette.spot}
+              {...({ glyph: '◎' } as any)}
               onPress={() => onMarkerPress(s)}
             >
-              {/* Forma (icono) + color: el acceso no depende solo del color */}
-              <View style={[styles.pin, { backgroundColor: COLOR_ACCESO[acceso] }]}>
-                <Ionicons name={ICONO_ACCESO[acceso]} size={16} color={palette.onAccent} />
-              </View>
+              <DianaSpot acceso={acceso} />
             </Marker>
           );
         })}
+        {/* Límites de la pesca submarina: línea discontinua entre cada par de puntos rojos (prohibido por dentro) */}
+        {limites &&
+          LIMITES_RIAS.flatMap((r) =>
+            r.tramos.map((t, i) => (
+              <Polyline
+                key={`l-${r.ria}-${i}`}
+                coordinates={t.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
+                strokeColor={palette.limit}
+                strokeWidth={3}
+                lineDashPattern={[10, 8]}
+              />
+            )),
+          )}
+        {limites &&
+          LIMITES_RIAS.flatMap((r) =>
+            r.tramos.flatMap((t, i) =>
+              t.map((p, j) => (
+                <Marker
+                  key={`p-${r.ria}-${i}-${j}`}
+                  coordinate={{ latitude: p.lat, longitude: p.lng }}
+                  pinColor={palette.limit}
+                  {...({ glyph: '✕' } as any)}
+                  accessibilityLabel={`Límite de pesca submarina, ${r.ria}, ${p.nombre}`}
+                  tracksViewChanges={false}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  onPress={() => {
+                    setTapped(null);
+                    setSelected(null);
+                    setSalidaSel(null);
+                    setLimiteSel({ ria: r.ria, punto: p.nombre, otro: t.length === 2 ? t[1 - j].nombre : undefined });
+                  }}
+                >
+                  <View style={styles.puntoLimite}>
+                    <Ionicons name="close" size={14} color="#FFFFFF" />
+                  </View>
+                </Marker>
+              )),
+            ),
+          )}
         {/* Salidas de pesca: zona APROXIMADA (la función del servidor nunca entrega el punto exacto) */}
         {salidas.map((sa) => (
           <Circle
@@ -152,7 +212,7 @@ export default function MapaScreen() {
             accessibilityLabel={`Salida de pesca, ${sa.es_mia ? 'tuya' : sa.autor ?? 'otro pescador'}`}
             tracksViewChanges={false}
             anchor={{ x: 0.5, y: 0.5 }}
-            onPress={() => { setTapped(null); setSelected(null); setSalidaSel(sa); }}
+            onPress={() => { setTapped(null); setSelected(null); setLimiteSel(null); setSalidaSel(sa); }}
           >
             <View style={[styles.pin, styles.pinSalida]}>
               <Ionicons name="boat" size={16} color={palette.buoy} />
@@ -177,6 +237,13 @@ export default function MapaScreen() {
       <View style={styles.fabWrap}>
         <BasemapSwitcher value={basemap} onChange={setBasemap} />
         {(basemap === 'carta' || basemap === 'mixta') && <ChartLegendButton />}
+        <IconButton
+          icon="ban"
+          custom={<XuntaEmblema height={26} opacity={limites ? 1 : 0.55} />}
+          label={limites ? 'Ocultar límites de pesca submarina (Xunta de Galicia)' : 'Mostrar límites de pesca submarina (Xunta de Galicia)'}
+          onPress={alternarLimites}
+          active={limites}
+        />
         <IconButton icon="locate" label="Centrar en mi posición" onPress={locate} style={locLoading ? { opacity: 0.6 } : undefined} />
         <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
       </View>
@@ -198,6 +265,8 @@ export default function MapaScreen() {
           </Pressable>
         </View>
       )}
+
+      {limiteSel && limites && <LimitePanel {...limiteSel} onClose={() => setLimiteSel(null)} />}
 
       {salidaSel && (
         <View style={styles.panel}>
@@ -249,6 +318,10 @@ const styles = StyleSheet.create({
   pin: {
     width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: palette.abyss,
+  },
+  puntoLimite: {
+    width: 22, height: 22, borderRadius: 11, backgroundColor: palette.limit,
+    borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
   },
   pinSalida: { backgroundColor: palette.abyss, borderColor: palette.buoy },
   hint: { position: 'absolute', bottom: spacing.l + 4, left: spacing.m, right: spacing.m + 64 },

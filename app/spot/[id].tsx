@@ -6,7 +6,7 @@ import { fetchSpot, fetchSpotCapturas } from '@/hooks/useSpots';
 import { useAuth } from '@/hooks/useAuth';
 import { SpotAcceso } from '@/components/SpotAcceso';
 import { SpotComentarios } from '@/components/SpotComentarios';
-import { VisibilityBadge, accesoSpot, COLOR_ACCESO } from '@/components/VisibilityBadge';
+import { VisibilityBadge, accesoSpot } from '@/components/VisibilityBadge';
 import { CaptureCard } from '@/components/CaptureCard';
 import { ThemedText } from '@/components/ThemedText';
 import { palette, card, spacing, radii } from '@/lib/theme';
@@ -72,7 +72,7 @@ export default function SpotDetailScreen() {
         }}
         customMapStyle={[{ elementType: 'geometry', stylers: [{ color: '#021627' }] }, { featureType: 'water', stylers: [{ color: '#04284A' }] }]}
       >
-        <Marker coordinate={{ latitude: spot.lat, longitude: spot.lng }} pinColor={COLOR_ACCESO[acceso]} />
+        <Marker coordinate={{ latitude: spot.lat, longitude: spot.lng }} pinColor={palette.spot} />
       </MapView>
 
       {/* Foto destacada */}

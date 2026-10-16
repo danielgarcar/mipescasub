@@ -69,9 +69,11 @@ const btn = StyleSheet.create({
 /* ───────── IconButton / Fab ───────── */
 
 export function IconButton({
-  icon, label, onPress, size = TOUCH, active, accent, style,
+  icon, label, onPress, size = TOUCH, active, accent, style, custom,
 }: {
   icon: IconName; label: string; onPress: () => void; size?: number; active?: boolean; accent?: boolean; style?: StyleProp<ViewStyle>;
+  /** Contenido propio (p. ej. un logotipo) en lugar del icono. */
+  custom?: ReactNode;
 }) {
   const bg = accent || active ? palette.buoy : palette.surface;
   const fg = accent || active ? palette.onAccent : palette.foam;
@@ -88,7 +90,7 @@ export function IconButton({
         style,
       ]}
     >
-      <Ionicons name={icon} size={Math.round(size * 0.5)} color={fg} />
+      {custom ?? <Ionicons name={icon} size={Math.round(size * 0.5)} color={fg} />}
     </Pressable>
   );
 }
