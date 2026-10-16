@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker, Circle } from 'react-native-maps';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,7 +13,10 @@ import { palette, spacing, radii } from '@/lib/theme';
 import { PointInfoPanel } from '@/components/PointInfoPanel';
 import { PlaceSearch, type PlaceResult } from '@/components/PlaceSearch';
 import type { Spot } from '@/types';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useSalidasVisibles } from '@/hooks/useSalidas';
+import { SalidaCard } from '@/components/SalidaCard';
+import type { SalidaVisible } from '@/types';
 
 /**
  * Mapa de spots de pesca submarina.
@@ -30,13 +33,18 @@ export default function MapaScreen() {
   const { spots, loading: spotsLoading, error: spotsError, reload: reloadSpots } = useSpots();
   const { user } = useAuth();
   const [selected, setSelected] = useState<Spot | null>(null);
+  const { salidas, reload: reloadSalidas } = useSalidasVisibles();
+  const [salidaSel, setSalidaSel] = useState<SalidaVisible | null>(null);
+  // Llega con lat/lng cuando se pulsa "Ver zona" en una salida.
+  const foco = useLocalSearchParams<{ lat?: string; lng?: string }>();
 
   const [basemap, setBasemap] = useState<Basemap>('carta');
   // Al volver a esta pestaña (p. ej. tras crear un spot o cambiar su visibilidad) se recargan los spots.
   useFocusEffect(
     useCallback(() => {
       reloadSpots();
-    }, [reloadSpots]),
+      reloadSalidas();
+    }, [reloadSpots, reloadSalidas]),
   );
 
   const mapRef = useRef<any>(null);
@@ -65,8 +73,17 @@ export default function MapaScreen() {
 
   const onMarkerPress = useCallback((s: Spot) => {
     setTapped(null);
+    setSalidaSel(null);
     setSelected(s);
   }, []);
+
+  useEffect(() => {
+    const la = parseFloat(foco.lat ?? '');
+    const ln = parseFloat(foco.lng ?? '');
+    if (isFinite(la) && isFinite(ln)) {
+      mapRef.current?.animateToRegion({ latitude: la, longitude: ln, latitudeDelta: 0.06, longitudeDelta: 0.06 }, 600);
+    }
+  }, [foco.lat, foco.lng]);
 
   return (
     <View style={styles.root}>
@@ -81,6 +98,7 @@ export default function MapaScreen() {
         onPress={(e: any) => {
           const c = e.nativeEvent.coordinate;
           setSelected(null);
+          setSalidaSel(null);
           setTapped({ lat: c.latitude, lng: c.longitude });
         }}
         onLongPress={(e: any) => {
@@ -116,6 +134,31 @@ export default function MapaScreen() {
             </Marker>
           );
         })}
+        {/* Salidas de pesca: zona APROXIMADA (la función del servidor nunca entrega el punto exacto) */}
+        {salidas.map((sa) => (
+          <Circle
+            key={`z-${sa.id}`}
+            center={{ latitude: sa.zona_lat, longitude: sa.zona_lng }}
+            radius={1100}
+            strokeWidth={1}
+            strokeColor={palette.buoy + 'AA'}
+            fillColor={palette.buoy + '22'}
+          />
+        ))}
+        {salidas.map((sa) => (
+          <Marker
+            key={`s-${sa.id}`}
+            coordinate={{ latitude: sa.zona_lat, longitude: sa.zona_lng }}
+            accessibilityLabel={`Salida de pesca, ${sa.es_mia ? 'tuya' : sa.autor ?? 'otro pescador'}`}
+            tracksViewChanges={false}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onPress={() => { setTapped(null); setSelected(null); setSalidaSel(sa); }}
+          >
+            <View style={[styles.pin, styles.pinSalida]}>
+              <Ionicons name="boat" size={16} color={palette.buoy} />
+            </View>
+          </Marker>
+        ))}
         {tapped && (
           <Marker coordinate={{ latitude: tapped.lat, longitude: tapped.lng }} pinColor={palette.pinPoint} />
         )}
@@ -149,6 +192,21 @@ export default function MapaScreen() {
             style={styles.closeBtn}
             accessibilityRole="button"
             accessibilityLabel="Cerrar tarjeta del spot"
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={22} color={palette.foamSoft} />
+          </Pressable>
+        </View>
+      )}
+
+      {salidaSel && (
+        <View style={styles.panel}>
+          <SalidaCard s={salidaSel} />
+          <Pressable
+            onPress={() => setSalidaSel(null)}
+            style={styles.closeBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar tarjeta de la salida"
             hitSlop={8}
           >
             <Ionicons name="close" size={22} color={palette.foamSoft} />
@@ -192,6 +250,7 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: palette.abyss,
   },
+  pinSalida: { backgroundColor: palette.abyss, borderColor: palette.buoy },
   hint: { position: 'absolute', bottom: spacing.l + 4, left: spacing.m, right: spacing.m + 64 },
   errBanner: { position: 'absolute', top: spacing.m + 60, left: spacing.m, right: spacing.m },
   loading: { position: 'absolute', top: '50%', left: 0, right: 0, alignItems: 'center' },

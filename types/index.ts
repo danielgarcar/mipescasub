@@ -116,3 +116,50 @@ export interface ApneaTable {
   descripcion: string;
   series: ApneaSegment[];
 }
+
+/* ---------------- Equipo y salidas ---------------- */
+
+export type CategoriaEquipo = 'traje' | 'pesca' | 'seguridad' | 'barco' | 'otros';
+
+/** Pieza de equipo del pescador (`pescasub_equipo`). */
+export interface Equipo {
+  id: string;
+  nombre: string;
+  categoria: CategoriaEquipo;
+  nota?: string | null;
+  /** fecha de caducidad/revisión (YYYY-MM-DD) */
+  caduca?: string | null;
+}
+
+export type EstadoSalida = 'planeada' | 'en_agua' | 'fuera' | 'cancelada';
+export type VisibilidadSalida = 'privada' | 'usuarios' | 'publica';
+
+/** Salida propia, con el punto exacto (solo la ve su dueño). */
+export interface Salida {
+  id: string;
+  spot_id?: string | null;
+  lat: number;
+  lng: number;
+  inicio: string;
+  fin_previsto: string;
+  salida_real?: string | null;
+  estado: EstadoSalida;
+  visibilidad: VisibilidadSalida;
+  personas: number;
+  notas?: string | null;
+}
+
+/** Salida tal y como la ve cualquier usuario: zona APROXIMADA (centro de una celda de ~2 km). */
+export interface SalidaVisible {
+  id: string;
+  es_mia: boolean;
+  /** solo en salidas propias o compartidas con el usuario; en las públicas es null */
+  autor: string | null;
+  zona_lat: number;
+  zona_lng: number;
+  inicio: string;
+  fin_previsto: string;
+  estado: EstadoSalida;
+  personas: number;
+  visibilidad: VisibilidadSalida;
+}

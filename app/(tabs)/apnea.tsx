@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { ThemedText } from '@/components/ThemedText';
 import { ApneaControls } from '@/components/ApneaControls';
-import { Button, IconButton, Segmented } from '@/components/ui';
+import { Button, IconButton, Segmented, Stepper } from '@/components/ui';
 import { Alert } from '@/lib/alert';
 import { color, palette, card, spacing, radii } from '@/lib/theme';
 import { useApneaTimer } from '@/hooks/useApneaTimer';
@@ -180,23 +180,6 @@ export default function ApneaScreen() {
   );
 }
 
-function Stepper({
-  label, value, onMinus, onPlus, disabled, minusLabel, plusLabel,
-}: {
-  label: string; value: string; onMinus: () => void; onPlus: () => void; disabled?: boolean; minusLabel: string; plusLabel: string;
-}) {
-  return (
-    <View style={styles.paramRow}>
-      <ThemedText variant="body" style={{ flex: 1 }}>{label}</ThemedText>
-      <View style={styles.steps}>
-        <IconButton icon="remove" label={minusLabel} onPress={disabled ? () => {} : onMinus} size={44} />
-        <ThemedText variant="h2" style={{ minWidth: 52, textAlign: 'center' }}>{value}</ThemedText>
-        <IconButton icon="add" label={plusLabel} onPress={disabled ? () => {} : onPlus} size={44} />
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.abyss },
   timerWrap: { alignItems: 'center', paddingVertical: spacing.m, gap: 6 },
@@ -208,8 +191,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: spacing.s, alignItems: 'center', padding: spacing.s,
     borderRadius: radii.m, borderWidth: 1, borderColor: color.warn,
   },
-  paramRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.s },
-  steps: { flexDirection: 'row', alignItems: 'center', gap: spacing.s },
   segLine: { flexDirection: 'row', gap: spacing.s, paddingVertical: 6, paddingHorizontal: spacing.s, borderRadius: radii.s },
   segActual: { backgroundColor: palette.highlight },
   backdrop: { flex: 1, backgroundColor: 'rgba(2,22,39,0.85)', justifyContent: 'center', padding: spacing.m },

@@ -245,3 +245,49 @@ const ban = StyleSheet.create({
   box: { backgroundColor: palette.abyss, borderWidth: 1, borderRadius: radii.m, padding: spacing.s },
   text: { fontSize: 13 },
 });
+
+/* ───────── Stepper (− valor +) ───────── */
+
+export function Stepper({
+  label, value, onMinus, onPlus, disabled, minusLabel, plusLabel,
+}: {
+  label: string; value: string; onMinus: () => void; onPlus: () => void; disabled?: boolean; minusLabel: string; plusLabel: string;
+}) {
+  return (
+    <View style={stp.row}>
+      <Text style={stp.label}>{label}</Text>
+      <View style={stp.steps}>
+        <IconButton icon="remove" label={minusLabel} onPress={disabled ? () => {} : onMinus} size={44} />
+        <Text style={stp.value}>{value}</Text>
+        <IconButton icon="add" label={plusLabel} onPress={disabled ? () => {} : onPlus} size={44} />
+      </View>
+    </View>
+  );
+}
+
+const stp = StyleSheet.create({
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.s },
+  steps: { flexDirection: 'row', alignItems: 'center', gap: spacing.s },
+  label: { color: palette.foam, fontSize: 16, flex: 1 },
+  value: { color: palette.foam, fontSize: 20, fontWeight: '600', minWidth: 56, textAlign: 'center' },
+});
+
+/* ───────── Badge ───────── */
+
+export function Badge({ text, tone = 'info', icon }: { text: string; tone?: 'ok' | 'info' | 'warn' | 'danger'; icon?: IconName }) {
+  const c = tone === 'ok' ? palette.ok : tone === 'warn' ? palette.pinPoint : tone === 'danger' ? palette.coral : palette.foamSoft;
+  return (
+    <View style={[bdg.box, { borderColor: c }]}>
+      {icon && <Ionicons name={icon} size={12} color={c} />}
+      <Text style={[bdg.text, { color: c }]}>{text}</Text>
+    </View>
+  );
+}
+
+const bdg = StyleSheet.create({
+  box: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: radii.s,
+    paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start',
+  },
+  text: { fontSize: 12, fontWeight: '700' },
+});

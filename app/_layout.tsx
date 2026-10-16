@@ -56,6 +56,8 @@ export default function RootLayout() {
           <Stack.Screen name="spot/new" />
           <Stack.Screen name="captura/new" />
           <Stack.Screen name="foro/[id]" />
+          <Stack.Screen name="salida/new" />
+          <Stack.Screen name="salida/[id]" />
         </Stack.Protected>
       </Stack>
     </ThemeProvider>
