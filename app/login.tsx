@@ -14,6 +14,11 @@ type Modo = 'entrar' | 'registro' | 'recuperar' | 'nueva';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CLAVE_EMAIL = 'mipescasub.email';
 
+/** Mientras sea false, "Crear cuenta" solo muestra el aviso de beta y no llama a Supabase. */
+const REGISTRO_ABIERTO = false;
+const AVISO_BETA =
+  'Esta web está en fase beta, pronto abriremos más cupo. Lamentamos las molestias, mientras tanto: ¡Buena Pesca!';
+
 /** Fuerza de la contraseña de 0 a 4 (longitud, mayúsculas/minúsculas, números, símbolos). */
 function fuerza(p: string): number {
   let n = 0;
@@ -145,6 +150,7 @@ export default function LoginScreen() {
   const enviar = async () => {
     setError(null);
     setInfo(null);
+    if (modo === 'registro' && !REGISTRO_ABIERTO) return; // el aviso ya se muestra encima del formulario
     const mail = email.trim();
     if (modo !== 'nueva') {
       if (!mail) return setError('Escribe tu email.');
@@ -203,7 +209,8 @@ export default function LoginScreen() {
     nueva: { titulo: 'Elige una contraseña nueva', sub: 'Será la que uses desde ahora para entrar.', boton: 'Guardar y entrar' },
   };
   const { titulo, sub, boton } = TEXTOS[modo];
-  const conRepetir = modo === 'registro' || modo === 'nueva';
+  const cerrado = modo === 'registro' && !REGISTRO_ABIERTO; // registro cerrado: solo se muestra el aviso
+  const conRepetir = (modo === 'registro' || modo === 'nueva') && !cerrado;
   const nivel = fuerza(password);
   const campo = (id: string) => [styles.field, glassField as any, foco === id && styles.fieldFocus, foco === id && (glowField as any)];
 
@@ -245,7 +252,14 @@ export default function LoginScreen() {
               <Text style={styles.title}>{titulo}</Text>
               <Text style={styles.sub}>{sub}</Text>
 
-              {modo === 'registro' && (
+              {cerrado && (
+                <View style={[styles.msgBox, styles.msgOk]}>
+                  <Ionicons name="information-circle" size={16} color={palette.ok} />
+                  <Text style={styles.info}>{AVISO_BETA}</Text>
+                </View>
+              )}
+
+              {modo === 'registro' && !cerrado && (
                 <View style={campo('nombre')}>
                   <Ionicons name="person-outline" size={18} color={palette.foamSoft} />
                   <TextInput
@@ -260,7 +274,7 @@ export default function LoginScreen() {
                   />
                 </View>
               )}
-              {modo !== 'nueva' && (
+              {modo !== 'nueva' && !cerrado && (
               <View style={campo('email')}>
                 <Ionicons name="mail-outline" size={18} color={palette.foamSoft} />
                 <TextInput
@@ -279,7 +293,7 @@ export default function LoginScreen() {
                 />
               </View>
               )}
-              {modo !== 'recuperar' && (
+              {modo !== 'recuperar' && !cerrado && (
                 <View style={campo('pass')}>
                   <Ionicons name="lock-closed-outline" size={18} color={palette.foamSoft} />
                   <TextInput
@@ -352,6 +366,7 @@ export default function LoginScreen() {
                 </View>
               )}
 
+              {!cerrado && (
               <Animated.View
                 style={{ transform: [{ scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) }] }}
               >
@@ -372,6 +387,7 @@ export default function LoginScreen() {
                   )}
                 </Pressable>
               </Animated.View>
+              )}
 
               {modo === 'entrar' && (
                 <Pressable onPress={() => cambiarModo('recuperar')}>
