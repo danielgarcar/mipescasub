@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Pressable, ActivityIndicator, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker, Circle, Polyline } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Paths } from 'expo-file-system';
 import { LIMITES_RIAS } from '@/lib/zonasProhibidas';
+import { LINEAS_BASE } from '@/lib/aguasExteriores';
 import { LimitePanel } from '@/components/LimitePanel';
-import { XuntaEmblema } from '@/components/XuntaEmblema';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +33,12 @@ import type { SalidaVisible } from '@/types';
  * lo dejamos vacío (sin desplegar) el UrlTile no se añade y el mapa funciona
  * con el mapa base.
  */
+// Las teselas del mapa base se guardan en disco (z/x/y) y se reutilizan 7 días: menos datos móviles,
+// menos peticiones a los servidores públicos (OSM, IHM) y el mapa sigue viéndose con poca cobertura.
+// En web el navegador ya las cachea; en iOS con Google Maps la caché de react-native-maps no aplica.
+const TILE_CACHE_MAX_AGE = 7 * 24 * 3600;
+const cacheDe = (capa: string) => (Platform.OS === 'web' ? undefined : `${Paths.cache.uri}tiles/${capa}`);
+
 export default function MapaScreen() {
   const router = useRouter();
   const { coords, error: locError, loading: locLoading, locate } = useLocation(false);
@@ -54,6 +61,18 @@ export default function MapaScreen() {
     setLimites(nuevo);
     if (!nuevo) setLimiteSel(null);
     AsyncStorage.setItem('mipescasub.mapa.limites', nuevo ? '1' : '0').catch(() => {});
+  };
+  // Filtro "aguas_exteriores": líneas de base rectas desde las que se miden las aguas exteriores.
+  const [aguasExt, setAguasExt] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('mipescasub.mapa.aguas_exteriores')
+      .then((v) => v !== null && setAguasExt(v === '1'))
+      .catch(() => {});
+  }, []);
+  const alternarAguasExt = () => {
+    const nuevo = !aguasExt;
+    setAguasExt(nuevo);
+    AsyncStorage.setItem('mipescasub.mapa.aguas_exteriores', nuevo ? '1' : '0').catch(() => {});
   };
   // Llega con lat/lng cuando se pulsa "Ver zona" en una salida.
   const foco = useLocalSearchParams<{ lat?: string; lng?: string }>();
@@ -133,10 +152,23 @@ export default function MapaScreen() {
         customMapStyle={basemap === 'carta' ? DARK_MAP_STYLE : undefined}
       >
         {basemap === 'osm' && (
-          <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} zIndex={0} />
+          <UrlTile
+            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+            zIndex={0}
+            tileCachePath={cacheDe('osm')}
+            tileCacheMaxAge={TILE_CACHE_MAX_AGE}
+          />
         )}
         {(basemap === 'carta' || basemap === 'mixta') && (
-          <WMSTile urlTemplate={ENC_WMS} tileSize={256} opacity={basemap === 'mixta' ? 0.6 : 1} zIndex={1} />
+          <WMSTile
+            urlTemplate={ENC_WMS}
+            tileSize={256}
+            opacity={basemap === 'mixta' ? 0.6 : 1}
+            zIndex={1}
+            tileCachePath={cacheDe('enc')}
+            tileCacheMaxAge={TILE_CACHE_MAX_AGE}
+          />
         )}
         {spots.map((s) => {
           const acceso = accesoSpot(s, user?.id);
@@ -194,6 +226,15 @@ export default function MapaScreen() {
               )),
             ),
           )}
+        {aguasExt &&
+          LINEAS_BASE.map((l, i) => (
+            <Polyline
+              key={`ae-${i}`}
+              coordinates={l.puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))}
+              strokeColor={palette.buoy}
+              strokeWidth={2}
+            />
+          ))}
         {/* Salidas de pesca: zona APROXIMADA (la función del servidor nunca entrega el punto exacto) */}
         {salidas.map((sa) => (
           <Circle
@@ -239,10 +280,17 @@ export default function MapaScreen() {
         {(basemap === 'carta' || basemap === 'mixta') && <ChartLegendButton />}
         <IconButton
           icon="ban"
-          custom={<XuntaEmblema height={26} opacity={limites ? 1 : 0.55} />}
+          custom={<Text style={[styles.limInt, { opacity: limites ? 1 : 0.6 }]}>{'Lim.\nInterior'}</Text>}
           label={limites ? 'Ocultar límites de pesca submarina (Xunta de Galicia)' : 'Mostrar límites de pesca submarina (Xunta de Galicia)'}
           onPress={alternarLimites}
           active={limites}
+        />
+        <IconButton
+          icon="analytics-outline"
+          custom={<Text style={[styles.limExt, { opacity: aguasExt ? 1 : 0.6 }]} numberOfLines={1}>Lim.Ext</Text>}
+          label={aguasExt ? 'Ocultar aguas exteriores' : 'Mostrar aguas exteriores'}
+          onPress={alternarAguasExt}
+          active={aguasExt}
         />
         <IconButton icon="locate" label="Centrar en mi posición" onPress={locate} style={locLoading ? { opacity: 0.6 } : undefined} />
         <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
@@ -327,6 +375,8 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: palette.abyss,
   },
+  limExt: { color: palette.foam, fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
+  limInt: { color: palette.foam, fontSize: 9, fontWeight: '800', textAlign: 'center', lineHeight: 11 },
   puntoLimite: {
     width: 22, height: 22, borderRadius: 11, backgroundColor: palette.limit,
     borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
