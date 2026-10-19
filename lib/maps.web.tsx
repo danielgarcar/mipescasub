@@ -209,13 +209,14 @@ const MapView = React.forwardRef<any, any>(function MapView(
 // El WMS de la carta ENC ya se añade en MapView; este componente no hace nada en web.
 export const WMSTile = (_props: any) => null;
 
-export const UrlTile = ({ urlTemplate, maximumZ, opacity }: any) => {
+export const UrlTile = ({ urlTemplate, maximumZ, maximumNativeZ, minimumZ, opacity }: any) => {
   const ctx = useContext(MapCtx);
   useEffect(() => {
     if (!ctx) return;
     const url = String(urlTemplate).replace('{-y}', '{y}');
     const layer = ctx.L.tileLayer(url, {
-      maxNativeZoom: maximumZ ?? 18,
+      minNativeZoom: minimumZ ?? 0,
+      maxNativeZoom: maximumNativeZ ?? maximumZ ?? 18,
       maxZoom: 19,
       opacity: opacity ?? 1,
       zIndex: 10,
@@ -223,7 +224,7 @@ export const UrlTile = ({ urlTemplate, maximumZ, opacity }: any) => {
     return () => {
       layer.remove();
     };
-  }, [ctx, urlTemplate, maximumZ, opacity]);
+  }, [ctx, urlTemplate, maximumZ, maximumNativeZ, minimumZ, opacity]);
   return null;
 };
 

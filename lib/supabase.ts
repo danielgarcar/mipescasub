@@ -62,6 +62,13 @@ export function tilesOficial(z: number, x: number, y: number): string {
   return `https://nuqfiwtcoeeutnnjslty.supabase.co/functions/v1/pescasub-tiles/${z}/${x}/${y}.png`;
 }
 
+/**
+ * Batimetría servida directamente desde Storage (bucket público `teselas-mbar`, objetos `z/x/y.png`,
+ * z 8..16): va por CDN y no consume llamadas a Edge Functions. Requiere que el bucket sea público.
+ */
+export const BATHYMETRY_PUBLIC_URL =
+  'https://nuqfiwtcoeeutnnjslty.supabase.co/storage/v1/object/public/teselas-mbar/{z}/{x}/{y}.png';
+
 /** true si la página se abrió desde el enlace de "recuperar contraseña" (solo web). */
 export const abiertoDesdeRecuperacion =
   Platform.OS === 'web' && typeof window !== 'undefined' && /type=recovery/.test(window.location.hash);

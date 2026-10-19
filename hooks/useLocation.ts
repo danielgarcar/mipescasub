@@ -10,27 +10,31 @@ export interface Coords {
   longitude: number;
 }
 
-export function useLocation(watch = false) {
+/** `auto = false`: no pide permiso ni posición al montar; solo cuando se llama a `locate()`. */
+export function useLocation(watch = false, auto = true) {
   const [coords, setCoords] = useState<Coords | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(auto);
 
-  const locate = useCallback(async () => {
+  const locate = useCallback(async (): Promise<Coords | null> => {
     setLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setError('Permiso de ubicación denegado. Actívalo en Ajustes para registrar spots y capturas.');
         setLoading(false);
-        return;
+        return null;
       }
       const pos = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      const c = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      setCoords(c);
       setError(null);
+      return c;
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo obtener la posición.');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -51,13 +55,13 @@ export function useLocation(watch = false) {
           setLoading(false);
         }
       })();
-    } else {
+    } else if (auto) {
       locate();
     }
     return () => {
       sub?.remove();
     };
-  }, [watch, locate]);
+  }, [watch, auto, locate]);
 
   return { coords, error, loading, locate };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Pressable, ActivityIndicator, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { PROVIDER_GOOGLE, WMSTile, UrlTile, Marker, Circle, Polyline } from 'react-native-maps';
@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Paths } from 'expo-file-system';
 import { LIMITES_RIAS } from '@/lib/zonasProhibidas';
 import { LINEAS_BASE } from '@/lib/aguasExteriores';
+import { BATHYMETRY_PUBLIC_URL } from '@/lib/supabase';
 import { LimitePanel } from '@/components/LimitePanel';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
@@ -41,7 +42,7 @@ const cacheDe = (capa: string) => (Platform.OS === 'web' ? undefined : `${Paths.
 
 export default function MapaScreen() {
   const router = useRouter();
-  const { coords, error: locError, loading: locLoading, locate } = useLocation(false);
+  const { coords, error: locError, loading: locLoading, locate } = useLocation(false, false);
   const { spots, loading: spotsLoading, error: spotsError, reload: reloadSpots } = useSpots();
   const { user } = useAuth();
   const [selected, setSelected] = useState<Spot | null>(null);
@@ -74,6 +75,18 @@ export default function MapaScreen() {
     setAguasExt(nuevo);
     AsyncStorage.setItem('mipescasub.mapa.aguas_exteriores', nuevo ? '1' : '0').catch(() => {});
   };
+  // Filtro "Batim.": batimetría MBAR24 del IHM servida desde el bucket público de Storage (z 8..16).
+  const [batimetria, setBatimetria] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem('mipescasub.mapa.batimetria')
+      .then((v) => v !== null && setBatimetria(v === '1'))
+      .catch(() => {});
+  }, []);
+  const alternarBatimetria = () => {
+    const nuevo = !batimetria;
+    setBatimetria(nuevo);
+    AsyncStorage.setItem('mipescasub.mapa.batimetria', nuevo ? '1' : '0').catch(() => {});
+  };
   // Llega con lat/lng cuando se pulsa "Ver zona" en una salida.
   const foco = useLocalSearchParams<{ lat?: string; lng?: string }>();
 
@@ -104,11 +117,20 @@ export default function MapaScreen() {
     );
   }, []);
 
-  const initialRegion = useMemo(() => {
-    if (coords) return { latitude: coords.latitude, longitude: coords.longitude, latitudeDelta: 0.1, longitudeDelta: 0.1 };
-    // Fallback: Ría de Pontevedra, donde hay cobertura de batimetría (z 8..16).
-    return { latitude: 42.38, longitude: -8.80, latitudeDelta: 0.1, longitudeDelta: 0.1 };
-  }, [coords]);
+  // El mapa NO se centra en el GPS al abrir: empieza en la Ría de Pontevedra (hay cobertura de
+  // batimetría, z 8..16). La posición solo se pide y se muestra cuando el usuario pulsa "localizar".
+  const initialRegion = { latitude: 42.38, longitude: -8.80, latitudeDelta: 0.1, longitudeDelta: 0.1 };
+
+  const [ubicado, setUbicado] = useState(false);
+  const irAMiPosicion = useCallback(async () => {
+    const c = await locate();
+    if (!c) return;
+    setUbicado(true);
+    mapRef.current?.animateToRegion(
+      { latitude: c.latitude, longitude: c.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+      600,
+    );
+  }, [locate]);
 
   const onMarkerPress = useCallback((s: Spot) => {
     setTapped(null);
@@ -132,8 +154,7 @@ export default function MapaScreen() {
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_GOOGLE}
         initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton
+        showsUserLocation={ubicado}
         showsCompass
         onPress={(e: any) => {
           const c = e.nativeEvent.coordinate;
@@ -168,6 +189,18 @@ export default function MapaScreen() {
             zIndex={1}
             tileCachePath={cacheDe('enc')}
             tileCacheMaxAge={TILE_CACHE_MAX_AGE}
+          />
+        )}
+        {batimetria && (
+          <UrlTile
+            urlTemplate={BATHYMETRY_PUBLIC_URL}
+            minimumZ={8}
+            maximumZ={19}
+            maximumNativeZ={16}
+            opacity={0.65}
+            zIndex={2}
+            tileCachePath={cacheDe('mbar')}
+            tileCacheMaxAge={30 * 24 * 3600}
           />
         )}
         {spots.map((s) => {
@@ -260,6 +293,9 @@ export default function MapaScreen() {
             </View>
           </Marker>
         ))}
+        {ubicado && coords && Platform.OS === 'web' && (
+          <Marker coordinate={coords} pinColor={palette.buoy} accessibilityLabel="Mi posición" />
+        )}
         {tapped && (
           <Marker coordinate={{ latitude: tapped.lat, longitude: tapped.lng }} pinColor={palette.pinPoint} />
         )}
@@ -292,7 +328,14 @@ export default function MapaScreen() {
           onPress={alternarAguasExt}
           active={aguasExt}
         />
-        <IconButton icon="locate" label="Centrar en mi posición" onPress={locate} style={locLoading ? { opacity: 0.6 } : undefined} />
+        <IconButton
+          icon="water"
+          custom={<Text style={[styles.limExt, { opacity: batimetria ? 1 : 0.6 }]} numberOfLines={1}>Batim.</Text>}
+          label={batimetria ? 'Ocultar batimetría' : 'Mostrar batimetría'}
+          onPress={alternarBatimetria}
+          active={batimetria}
+        />
+        <IconButton icon="locate" label="Centrar en mi posición" onPress={irAMiPosicion} style={locLoading ? { opacity: 0.6 } : undefined} />
         <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
       </View>
 
