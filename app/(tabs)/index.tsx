@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Paths } from 'expo-file-system';
 import { LIMITES_RIAS } from '@/lib/zonasProhibidas';
 import { LINEAS_BASE } from '@/lib/aguasExteriores';
-import { BATHYMETRY_PUBLIC_URL } from '@/lib/supabase';
 import { LimitePanel } from '@/components/LimitePanel';
 import { BasemapSwitcher, ChartLegendButton, type Basemap } from '@/components/MapLayerControls';
 import { useLocation } from '@/hooks/useLocation';
@@ -74,18 +73,6 @@ export default function MapaScreen() {
     const nuevo = !aguasExt;
     setAguasExt(nuevo);
     AsyncStorage.setItem('mipescasub.mapa.aguas_exteriores', nuevo ? '1' : '0').catch(() => {});
-  };
-  // Filtro "Batim.": batimetría MBAR24 del IHM servida desde el bucket público de Storage (z 8..16).
-  const [batimetria, setBatimetria] = useState(false);
-  useEffect(() => {
-    AsyncStorage.getItem('mipescasub.mapa.batimetria')
-      .then((v) => v !== null && setBatimetria(v === '1'))
-      .catch(() => {});
-  }, []);
-  const alternarBatimetria = () => {
-    const nuevo = !batimetria;
-    setBatimetria(nuevo);
-    AsyncStorage.setItem('mipescasub.mapa.batimetria', nuevo ? '1' : '0').catch(() => {});
   };
   // Llega con lat/lng cuando se pulsa "Ver zona" en una salida.
   const foco = useLocalSearchParams<{ lat?: string; lng?: string }>();
@@ -189,18 +176,6 @@ export default function MapaScreen() {
             zIndex={1}
             tileCachePath={cacheDe('enc')}
             tileCacheMaxAge={TILE_CACHE_MAX_AGE}
-          />
-        )}
-        {batimetria && (
-          <UrlTile
-            urlTemplate={BATHYMETRY_PUBLIC_URL}
-            minimumZ={8}
-            maximumZ={19}
-            maximumNativeZ={16}
-            opacity={0.65}
-            zIndex={2}
-            tileCachePath={cacheDe('mbar')}
-            tileCacheMaxAge={30 * 24 * 3600}
           />
         )}
         {spots.map((s) => {
@@ -327,13 +302,6 @@ export default function MapaScreen() {
           label={aguasExt ? 'Ocultar aguas exteriores' : 'Mostrar aguas exteriores'}
           onPress={alternarAguasExt}
           active={aguasExt}
-        />
-        <IconButton
-          icon="water"
-          custom={<Text style={[styles.limExt, { opacity: batimetria ? 1 : 0.6 }]} numberOfLines={1}>Batim.</Text>}
-          label={batimetria ? 'Ocultar batimetría' : 'Mostrar batimetría'}
-          onPress={alternarBatimetria}
-          active={batimetria}
         />
         <IconButton icon="locate" label="Centrar en mi posición" onPress={irAMiPosicion} style={locLoading ? { opacity: 0.6 } : undefined} />
         <IconButton icon="add" label="Añadir spot" onPress={() => router.push('/spot/new')} accent />
